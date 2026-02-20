@@ -27,7 +27,7 @@ resource "cloudflare_zone_settings_override" "pittimps_settings" {
     automatic_https_rewrites = "on"
     brotli                   = "on"
     security_level           = "medium"
-    ssl                      = "flexible" # Use "full" if Azure Storage allows full strict, but flexible works well for HTTP origins
+    ssl                      = "full"
   }
 }
 
@@ -43,4 +43,12 @@ resource "cloudflare_page_rule" "www_to_root" {
       status_code = 301
     }
   }
+}
+# asverify record to allow Azure to natively validate the custom domain for the Storage Account
+resource "cloudflare_record" "asverify" {
+  zone_id = data.cloudflare_zone.pittimps.id
+  name    = "asverify"
+  content = "asverify.pittimpscom.z20.web.core.windows.net"
+  type    = "CNAME"
+  proxied = false
 }

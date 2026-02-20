@@ -13,7 +13,15 @@ resource "azurerm_storage_account" "static_site" {
     error_404_document = "404.html"
   }
 
+  custom_domain {
+    name          = local.domain_name
+    use_subdomain = true
+  }
+
   tags = local.tags
+
+  # Ensure the asverify CNAME is created in Cloudflare before Azure attempts to validate the domain
+  depends_on = [cloudflare_record.asverify]
 }
 
 resource "azurerm_storage_container" "tfstate" {
