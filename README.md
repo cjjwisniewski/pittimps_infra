@@ -1,53 +1,42 @@
-# Azure Static Site Infrastructure
+# pittimps_infra — Azure & Cloudflare Infrastructure
 
-This repository contains Terraform code for provisioning the infrastructure required to host a static website (`pittimps.com`) on Azure Blob Storage, fronted by Cloudflare for CDN and HTTPS. It also sets up Azure AD Workload Identity Federation, allowing GitHub Actions to securely deploy updates to the Azure Storage Account without requiring long-lived secrets.
+Terraform configuration for provisioning the static website infrastructure for [`pittimps.com`](https://pittimps.com) on Azure Blob Storage (`$web`), fronted by Cloudflare DNS/CDN, with passwordless GitHub Actions OIDC deployment.
 
 ## Architecture
 
-- **Azure Resource Group**: Logical container for all infrastructure components.
-- **Azure Storage Account**: Uses the `static_website` feature to serve content from the automatically created `$web` container. State management is also handled via a private `tfstate` container.
-- **Cloudflare DNS & Proxy**: Manages DNS records, redirects `www` to the root domain, enforces HTTPS (via Best Practices Zone Settings), and provides CDN capabilities natively.
-- **Azure AD Identity**: An App Registration and Service Principal configured with federated credentials for GitHub Actions OIDC, allowing passwordless deployments.
+- **Azure Resource Group (`main.tf`)**: `pittimpscom` in `eastus2`.
+- **Azure Storage Account (`storage.tf`)**: `pittimpscom` (`StorageV2`, `Standard_LRS`) with `static_website` (`index_document = "index.html"`, `error_404_document = "404.html"`) and custom domain `pittimps.com` (`use_subdomain = true`, `depends_on = [cloudflare_record.asverify]`).
+- **Terraform Remote State (`providers.tf`, `storage.tf`)**: Stored in the private `tfstate` container (`terraform.tfstate`) on `pittimpscom`.
+- **Cloudflare DNS & Proxy (`cloudflare.tf`)**:
+  - `@` and `www` CNAMEs pointing to `pittimpscom`'s `primary_web_host` (`proxied = true`).
+  - `asverify` CNAME -> `asverify.pittimpscom.z20.web.core.windows.net` (`proxied = false`) for Azure custom domain validation.
+  - Page Rule redirecting `www.pittimps.com/*` -> `https://pittimps.com/$1` (`301`).
+  - Zone settings override: `always_use_https = "on"`, `automatic_https_rewrites = "on"`, `brotli = "on"`, `security_level = "medium"`, `ssl = "full"`.
+- **GitHub Actions OIDC (`github.tf`)**: Azure AD App & Service Principal `pittimps-github-deploy` with federated identity credential scoped to `repo:cjjwisniewski/pittimps.com:ref:refs/heads/main` and `Storage Blob Data Contributor` on `pittimpscom`.
 
-## Prerequisites
+## CI/CD Workflow (`.github/workflows/deploy.yml`)
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) (>= 1.0.0)
-- [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (for authenticating Terraform)
-- An active Azure Subscription
-- A Cloudflare account managing your domain's DNS
+- **Plan-only on Push/PR**: Pushes and pull requests to `main` run `terraform init`, `terraform validate`, and `terraform plan` only; auto-apply is disabled.
+- **Manual Apply (`workflow_dispatch`)**: Trigger `workflow_dispatch` with `apply=true` (and optional `untaint_address`) to apply changes.
+- **Destructive-Plan Guard**: The workflow inspects `terraform show -json tfplan` and aborts if any `delete` / replacement action is planned (`DESTROY_COUNT > 0`) to protect stateful resources.
+- **Required GitHub Variables / Secrets**:
+  - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (vars or secrets; OIDC for this infra repo)
+  - `CLOUDFLARE_API_TOKEN` (secret)
 
-## Initialization & Usage
+## Local Usage
 
-### 1. Authenticate with Azure
 ```bash
 az login
-```
-
-### 2. Configure Cloudflare
-Export your Cloudflare API token as an environment variable before running Terraform. This is required because the `cloudflare` provider reads this environment variable to authenticate.
-```bash
 export CLOUDFLARE_API_TOKEN="your_cloudflare_api_token_here"
-```
-
-### 3. Initialize & Apply
-```bash
 terraform init
 terraform plan
 terraform apply
 ```
 
-## GitHub Actions Deployment
+### Outputs
 
-This project sets up secure, secretless deployments via GitHub Actions OIDC. After running `terraform apply`, Terraform outputs three important values needed for your GitHub Actions workflow:
-
-- `azure_client_id`
-- `azure_tenant_id`
-- `azure_subscription_id`
-
-You will need to add these as Repository Secrets (or Environment Variables) in your GitHub repository containing your site code. Configure your workflow to use the `azure/login` action with `client-id`, `tenant-id`, and `subscription-id`. 
-
-> **Important**: Ensure you update the `github_repo` local variable in `locals.tf` to match your actual repository (e.g., `my-org/my-repo`) so the federated credential applies correctly to your GitHub Actions runs.
+`terraform output` exposes `azure_client_id`, `azure_tenant_id`, and `azure_subscription_id` for `cjjwisniewski/pittimps.com` GitHub Actions deployment, plus `resource_group_name`, `storage_account_name`, `storage_primary_web_endpoint`, and `cloudflare_cname_target`.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
