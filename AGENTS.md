@@ -20,7 +20,8 @@ This repository contains the Terraform configuration for **`pittimps.com`** (`cj
 - **Cloudflare Edge & Redirects**:
   - `@` and `www` CNAMEs point to `pittimpscom` `primary_web_host` (`proxied = true`).
   - `cloudflare_page_rule.www_to_root` redirects `www.pittimps.com/*` -> `https://pittimps.com/$1` (`301`).
-  - Zone SSL is `full` with `always_use_https = "on"`, `automatic_https_rewrites = "on"`, and `brotli = "on"`.
+  - Zone SSL is `full` with `always_use_https = "on"`, `automatic_https_rewrites = "on"`, `brotli = "on"`, `email_obfuscation = "off"`, and `rocket_loader = "off"`.
+  - `cloudflare_ruleset.security_headers` sets CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and `Permissions-Policy` on `pittimps.com`.
 - **GitHub Actions OIDC (`github.tf`)**:
   - `pittimps-github-deploy` Azure AD App/SP has a federated identity credential scoped strictly to `repo:cjjwisniewski/pittimps.com:ref:refs/heads/main` with `Storage Blob Data Contributor` on `pittimpscom`.
   - Both `azuread_application` and `azuread_service_principal` use `lifecycle { ignore_changes = [owners] }` to prevent drift when Terraform runs under a CI Service Principal.
