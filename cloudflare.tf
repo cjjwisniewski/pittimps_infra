@@ -51,7 +51,7 @@ resource "cloudflare_ruleset" "security_headers" {
       headers {
         name      = "Content-Security-Policy"
         operation = "set"
-        value     = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+        value     = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
       }
       headers {
         name      = "Permissions-Policy"
